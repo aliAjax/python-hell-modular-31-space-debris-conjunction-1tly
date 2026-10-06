@@ -52,6 +52,10 @@ def build_handler(service, static_dir):
                     return self._send(200, service.state())
                 if path == "/api/items":
                     return self._send(200, {"items": service.list_items()})
+                if path == "/api/audit/receipt":
+                    return self._send(200, service.receipt())
+                if path == "/api/audit/ledger":
+                    return self._send(200, {"entries": service.ledger()})
                 parts = [part for part in path.split("/") if part]
                 if len(parts) == 3 and parts[:2] == ["api", "items"]:
                     return self._send(200, service.get_item(int(parts[2])))
@@ -86,6 +90,14 @@ def build_handler(service, static_dir):
                         raise DomainError("action_required", "缺少 action", 400)
                     expected = payload.pop("expected_version", None)
                     return self._send(200, service.act(int(parts[2]), action, payload, actor, role, expected, region))
+                if parts == ["api", "audit", "reconcile"]:
+                    anchor = payload.get("anchor")
+                    anchor_seq = payload.get("anchor_seq")
+                    if anchor is not None and not isinstance(anchor, str):
+                        raise DomainError("invalid_anchor", "锚值必须是字符串", 400)
+                    if anchor_seq is not None and not isinstance(anchor_seq, int):
+                        raise DomainError("invalid_anchor_seq", "锚值链位必须是整数", 400)
+                    return self._send(200, service.reconcile(anchor, anchor_seq))
                 return self._send(404, {"error": "not_found", "message": "接口不存在"})
             except DomainError as exc:
                 return self._error(exc)

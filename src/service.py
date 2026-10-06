@@ -47,6 +47,8 @@ class Service:
         if rules.ENFORCE_REGION and action in rules.REGION_SENSITIVE_ACTIONS and region and role != "regulator":
             if item["payload"].get("region") != region:
                 raise DomainError("region_mismatch", "不能处理其他区域的记录", 403)
+        if action in ("approve", "execute") and item.get("held"):
+            raise DomainError("item_held", "该接近事件因审计分叉已停止批准和下发", 409)
         if action in rules.ACTION_REQUIRES_VERSION and expected_version is None:
             raise DomainError("expected_version_required", "该操作需要 expected_version", 400)
         new_status, new_payload, event_payload = rules.apply_action(item, action, payload, actor, role)
@@ -67,3 +69,15 @@ class Service:
 
     def state(self):
         return self.repository.state_summary()
+
+    def receipt(self):
+        """The current ledger head: the anchor the regulator takes on receipt."""
+        return self.repository.receipt()
+
+    def reconcile(self, anchor=None, anchor_seq=None):
+        """Replay the ledger from genesis and reconcile against the receipt anchor."""
+        return self.repository.reconcile(anchor, anchor_seq)
+
+    def ledger(self):
+        """The global, continuous general ledger (整库连续的总账)."""
+        return self.repository.list_ledger()
