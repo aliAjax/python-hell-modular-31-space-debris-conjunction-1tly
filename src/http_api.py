@@ -57,7 +57,11 @@ def build_handler(service, static_dir):
                     return self._send(200, service.get_item(int(parts[2])))
                 if len(parts) == 4 and parts[:2] == ["api", "items"] and parts[3] == "audit":
                     item = service.get_item(int(parts[2]))
-                    return self._send(200, {"events": item["audit"]})
+                    return self._send(200, {"events": item["audit"], "chain": item["audit_chain"]})
+                if path == "/api/ledger":
+                    return self._send(200, service.ledger())
+                if path == "/api/receipts":
+                    return self._send(200, {"receipts": service.repository.list_receipts()})
                 if path == "/":
                     file_path = os.path.join(static_dir, "index.html")
                     with open(file_path, "rb") as handle:
@@ -86,6 +90,22 @@ def build_handler(service, static_dir):
                         raise DomainError("action_required", "缺少 action", 400)
                     expected = payload.pop("expected_version", None)
                     return self._send(200, service.act(int(parts[2]), action, payload, actor, role, expected, region))
+                if parts == ["api", "receipts"]:
+                    return self._send(
+                        201,
+                        service.register_receipt(
+                            payload.get("period", ""),
+                            payload.get("seq"),
+                            payload.get("anchor", ""),
+                            actor,
+                            role,
+                            payload.get("note"),
+                        ),
+                    )
+                if parts == ["api", "reconcile"]:
+                    return self._send(200, service.reconcile(payload, actor, role))
+                if len(parts) == 5 and parts[:2] == ["api", "items"] and parts[3:] == ["quarantine", "release"]:
+                    return self._send(200, service.release_quarantine(int(parts[2]), actor, role, payload.get("note")))
                 return self._send(404, {"error": "not_found", "message": "接口不存在"})
             except DomainError as exc:
                 return self._error(exc)
